@@ -57,7 +57,7 @@ func (in NodeInput) applyTLSMaterial(n *domain.Node) error {
 		n.APIClientKey = *in.APIClientKey
 	}
 	if err := xray.ValidateTLSMaterial(n.APICACert, n.APIClientCert, n.APIClientKey); err != nil {
-		return domain.Validationf(err.Error())
+		return domain.Validationf("%s", err)
 	}
 	n.APIHasClientKey = n.APIClientKey != ""
 	return nil

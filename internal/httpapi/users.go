@@ -3,7 +3,6 @@ package httpapi
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -55,11 +54,19 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	page, _ := strconv.Atoi(q.Get("page"))
+	page, err := queryInt(q, "page", 1)
+	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
 	if page < 1 {
 		page = 1
 	}
-	perPage, _ := strconv.Atoi(q.Get("per_page"))
+	perPage, err := queryInt(q, "per_page", 50)
+	if err != nil {
+		badRequest(w, err.Error())
+		return
+	}
 	if perPage < 1 || perPage > 200 {
 		perPage = 50
 	}

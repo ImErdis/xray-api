@@ -12,6 +12,15 @@ const (
 	UserStatusDisabled  UserStatus = "disabled" // manually disabled by admin
 )
 
+// Valid reports whether s is one of the known user statuses.
+func (s UserStatus) Valid() bool {
+	switch s {
+	case UserStatusActive, UserStatusSuspended, UserStatusExpired, UserStatusDisabled:
+		return true
+	}
+	return false
+}
+
 // User is a provisioned subscriber. Email doubles as Xray's stats identity
 // (counters are named user>>>{email}>>>traffic>>>...) and must be globally
 // unique.

@@ -148,6 +148,9 @@ func (s *UserService) Update(ctx context.Context, id string, in UpdateInput) (*d
 		u.Note = *in.Note
 	}
 	if in.Status != nil {
+		if !in.Status.Valid() {
+			return nil, domain.Validationf("invalid status %q (want active|suspended|expired|disabled)", *in.Status)
+		}
 		u.Status = *in.Status
 	}
 	// Reactivate an expired user whose expiry now lies in the future.

@@ -41,7 +41,7 @@ func (s *Server) handleSubscription(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
+		writeBody(w, body)
 	default:
 		body, err := sub.RenderV2Ray()
 		if err != nil {
@@ -50,7 +50,7 @@ func (s *Server) handleSubscription(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(body))
+		writeBody(w, []byte(body))
 	}
 }
 

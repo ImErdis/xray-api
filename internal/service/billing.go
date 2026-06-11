@@ -83,7 +83,7 @@ type BillingResult struct {
 func (s *BillingService) Process(ctx context.Context, raw []byte) (*BillingResult, error) {
 	var ev BillingEvent
 	if err := json.Unmarshal(raw, &ev); err != nil {
-		return nil, domain.Validationf("invalid JSON: " + err.Error())
+		return nil, domain.Validationf("invalid JSON: %s", err)
 	}
 	if ev.EventID == "" {
 		return nil, domain.Validationf("event_id is required")

@@ -12,7 +12,7 @@ import (
 func (s *Server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/yaml")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(api.OpenAPISpec)
+	writeBody(w, api.OpenAPISpec)
 }
 
 // handleSystemStats returns a lightweight overview: node status counts and

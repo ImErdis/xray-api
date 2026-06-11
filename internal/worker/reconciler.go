@@ -56,12 +56,16 @@ func (a *nodeActor) reconcile(ctx context.Context) {
 		if err != nil {
 			a.log.Warn("reconcile: add user", "email", d.Email, "tag", d.InboundTag, "err", err)
 			metrics.ReconcileErrors.WithLabelValues(a.node.Name).Inc()
-			_ = a.mgr.store.MarkAssignmentSynced(ctx, d.UserID, d.InboundID, domain.SyncFailed, err.Error())
+			if serr := a.mgr.store.MarkAssignmentSynced(ctx, d.UserID, d.InboundID, domain.SyncFailed, err.Error()); serr != nil {
+				a.log.Warn("reconcile: mark assignment failed", "email", d.Email, "err", serr)
+			}
 			a.dropClient()
 			return
 		}
 		if d.SyncStatus != domain.SyncApplied {
-			_ = a.mgr.store.MarkAssignmentSynced(ctx, d.UserID, d.InboundID, domain.SyncApplied, "")
+			if err := a.mgr.store.MarkAssignmentSynced(ctx, d.UserID, d.InboundID, domain.SyncApplied, ""); err != nil {
+				a.log.Warn("reconcile: mark assignment applied", "email", d.Email, "err", err)
+			}
 		}
 	}
 }

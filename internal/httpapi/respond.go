@@ -3,7 +3,11 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/ImErdis/xray-api/internal/domain"
 )
@@ -22,7 +26,19 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if v != nil {
-		_ = json.NewEncoder(w).Encode(v)
+		// Headers are already sent, so the status can't change; a failure
+		// here is almost always the client hanging up mid-response.
+		if err := json.NewEncoder(w).Encode(v); err != nil {
+			slog.Debug("write response body", "err", err)
+		}
+	}
+}
+
+// writeBody writes a raw response body after headers are sent, logging (but
+// not failing on) short writes — typically the client hanging up.
+func writeBody(w http.ResponseWriter, body []byte) {
+	if _, err := w.Write(body); err != nil {
+		slog.Debug("write response body", "err", err)
 	}
 }
 
@@ -51,4 +67,18 @@ func decodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	return dec.Decode(dst)
+}
+
+// queryInt parses an integer query parameter, returning def when absent and
+// an error when present but not a number.
+func queryInt(q url.Values, name string, def int) (int, error) {
+	v := q.Get(name)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %q is not an integer", name, v)
+	}
+	return n, nil
 }

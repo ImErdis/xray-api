@@ -1,6 +1,9 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	// ErrNotFound indicates the requested entity does not exist.
@@ -19,5 +22,7 @@ type ValidationError struct {
 func (e *ValidationError) Error() string { return e.Msg }
 func (e *ValidationError) Unwrap() error { return ErrValidation }
 
-// Validationf builds a *ValidationError.
-func Validationf(msg string) error { return &ValidationError{Msg: msg} }
+// Validationf builds a *ValidationError, formatting like fmt.Sprintf.
+func Validationf(format string, args ...any) error {
+	return &ValidationError{Msg: fmt.Sprintf(format, args...)}
+}

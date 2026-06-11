@@ -58,6 +58,9 @@ func (a *nodeActor) collect(ctx context.Context) {
 		id, ok := idByEmail[email]
 		if !ok {
 			// Unknown email (user deleted, or hand-added on the node). Drop it.
+			a.log.Debug("collect: dropping traffic for unknown email",
+				"email", email, "uplink", t.Uplink, "downlink", t.Downlink)
+			delete(a.pendingDeltas, email)
 			continue
 		}
 		deltas = append(deltas, store.TrafficDelta{
