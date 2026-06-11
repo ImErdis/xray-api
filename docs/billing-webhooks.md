@@ -79,6 +79,18 @@ signature; `400` on malformed events; `404` for unknown users.
 2. **`external_id`** — provisioning is keyed on it, so even a *new* event id
    for the same purchase cannot create a second account.
 
+Dedup details:
+
+- The `event_id` claim is a database unique constraint, so it is safe when
+  running multiple API instances: concurrent deliveries of the same event race
+  on the insert and exactly one executes.
+- If the action **fails** after the id was claimed, the claim is released and
+  the error returned (non-2xx), so the provider's retry executes the event
+  instead of being answered as a duplicate. The one unrecoverable window is a
+  crash between claiming and releasing — after that a retry reports
+  `duplicate` without having executed; check the logs if a provider flags a
+  webhook as failed but the retry reports duplicate.
+
 ## Wiring up Stripe
 
 Stripe signs its own webhooks differently, so don't point Stripe at this

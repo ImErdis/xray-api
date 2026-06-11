@@ -20,3 +20,11 @@ func (s *Store) RecordWebhookEvent(ctx context.Context, eventID, action string) 
 	}
 	return n == 1, nil
 }
+
+// DeleteWebhookEvent removes a recorded event id so a provider retry is
+// processed again. Used when the action failed after the id was claimed.
+func (s *Store) DeleteWebhookEvent(ctx context.Context, eventID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`DELETE FROM webhook_events WHERE id = $1`, eventID)
+	return mapErr(err)
+}

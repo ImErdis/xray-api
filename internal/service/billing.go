@@ -117,6 +117,16 @@ func (s *BillingService) Process(ctx context.Context, raw []byte) (*BillingResul
 		err = s.cancel(ctx, &ev)
 	}
 	if err != nil {
+		// Release the event id so the provider's retry is processed instead
+		// of being swallowed as a duplicate. Runs even when ctx is canceled
+		// (the action may have failed precisely because the caller hung up).
+		// Best effort: if this delete also fails the retry will (wrongly)
+		// report duplicate, so make it loud.
+		dctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if derr := s.store.DeleteWebhookEvent(dctx, ev.EventID); derr != nil {
+			return nil, fmt.Errorf("%w (also failed to release event %s for retry: %v)", err, ev.EventID, derr)
+		}
 		return nil, err
 	}
 	return res, nil
