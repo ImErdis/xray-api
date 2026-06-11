@@ -17,6 +17,7 @@ type DesiredAssignment struct {
 	InboundTag string
 	Protocol   domain.Protocol
 	Flow       string
+	Method     string // Shadowsocks cipher (inbound-level)
 	Email      string
 	UUID       string
 	TrojanPass string
@@ -109,7 +110,7 @@ func (s *Store) SetAssignmentsForUserTx(ctx context.Context, tx *sql.Tx, userID 
 // active users with non-removing assignments. Used by the reconciler to push.
 func (s *Store) DesiredForNode(ctx context.Context, nodeID string) ([]*DesiredAssignment, error) {
 	return s.queryDesired(ctx, `
-		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow,
+		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow, i.method,
 			u.email, u.uuid, u.trojan_password, ui.sync_status
 		FROM user_inbounds ui
 		JOIN inbounds i ON i.id = ui.inbound_id
@@ -122,7 +123,7 @@ func (s *Store) DesiredForNode(ctx context.Context, nodeID string) ([]*DesiredAs
 // either tombstoned, or belonging to a non-active user.
 func (s *Store) RemovalsForNode(ctx context.Context, nodeID string) ([]*DesiredAssignment, error) {
 	return s.queryDesired(ctx, `
-		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow,
+		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow, i.method,
 			u.email, u.uuid, u.trojan_password, ui.sync_status
 		FROM user_inbounds ui
 		JOIN inbounds i ON i.id = ui.inbound_id
@@ -141,7 +142,8 @@ func (s *Store) queryDesired(ctx context.Context, q string, args ...any) ([]*Des
 	for rows.Next() {
 		var d DesiredAssignment
 		if err := rows.Scan(&d.UserID, &d.InboundID, &d.NodeID, &d.InboundTag,
-			&d.Protocol, &d.Flow, &d.Email, &d.UUID, &d.TrojanPass, &d.SyncStatus); err != nil {
+			&d.Protocol, &d.Flow, &d.Method, &d.Email, &d.UUID, &d.TrojanPass,
+			&d.SyncStatus); err != nil {
 			return nil, mapErr(err)
 		}
 		out = append(out, &d)
@@ -154,7 +156,7 @@ func (s *Store) queryDesired(ctx context.Context, q string, args ...any) ([]*Des
 // suspend/expire/delete.
 func (s *Store) AssignmentTargetsForUser(ctx context.Context, userID string) ([]*DesiredAssignment, error) {
 	return s.queryDesired(ctx, `
-		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow,
+		SELECT ui.user_id, ui.inbound_id, i.node_id, i.tag, i.protocol, i.flow, i.method,
 			u.email, u.uuid, u.trojan_password, ui.sync_status
 		FROM user_inbounds ui
 		JOIN inbounds i ON i.id = ui.inbound_id

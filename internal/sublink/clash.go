@@ -26,6 +26,7 @@ type clashProxy struct {
 	RealityOpts map[string]string `yaml:"reality-opts,omitempty"`
 	WSOpts      map[string]any    `yaml:"ws-opts,omitempty"`
 	GRPCOpts    map[string]string `yaml:"grpc-opts,omitempty"`
+	XHTTPOpts   map[string]any    `yaml:"xhttp-opts,omitempty"`
 }
 
 type clashConfig struct {
@@ -77,6 +78,17 @@ func clashProxyFor(u *domain.User, ib *domain.Inbound) clashProxy {
 	case domain.ProtocolTrojan:
 		p.Type = "trojan"
 		p.Password = u.TrojanPassword
+	case domain.ProtocolShadowsocks:
+		p.Type = "ss"
+		p.Password = u.TrojanPassword
+		p.Cipher = ib.Method
+		if p.Cipher == "" {
+			p.Cipher = "aes-256-gcm"
+		}
+		// Shadowsocks in Clash carries no TLS/transport block; emit the bare
+		// proxy and return early.
+		p.Network = ""
+		return p
 	}
 
 	switch ib.Security {
@@ -113,6 +125,20 @@ func clashProxyFor(u *domain.User, ib *domain.Inbound) clashProxy {
 	case domain.NetworkGRPC:
 		if ib.GRPCServiceName != "" {
 			p.GRPCOpts = map[string]string{"grpc-service-name": ib.GRPCServiceName}
+		}
+	case domain.NetworkXHTTP:
+		xh := map[string]any{}
+		if ib.WSPath != "" {
+			xh["path"] = ib.WSPath
+		}
+		if ib.HostHeader != "" {
+			xh["host"] = ib.HostHeader
+		}
+		if ib.XHTTPMode != "" {
+			xh["mode"] = ib.XHTTPMode
+		}
+		if len(xh) > 0 {
+			p.XHTTPOpts = xh
 		}
 	}
 	return p

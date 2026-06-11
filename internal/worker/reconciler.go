@@ -73,5 +73,6 @@ func accountFor(d *store.DesiredAssignment) xray.Account {
 		UUID:     d.UUID,
 		Password: d.TrojanPass,
 		Flow:     d.Flow,
+		Method:   d.Method,
 	}
 }

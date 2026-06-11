@@ -53,6 +53,42 @@
           ]
         }
       }
+    },
+    {
+      "tag": "vless-xhttp",
+      "listen": "0.0.0.0",
+      "port": 2096,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "tls",
+        "xhttpSettings": {
+          "path": "/xh",
+          "mode": "auto"
+        },
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/xray/cert.pem",
+              "keyFile": "/etc/xray/key.pem"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "tag": "ss-multi",
+      "listen": "0.0.0.0",
+      "port": 8388,
+      "protocol": "shadowsocks",
+      "settings": {
+        "clients": [],
+        "network": "tcp,udp"
+      }
     }
   ],
   "outbounds": [

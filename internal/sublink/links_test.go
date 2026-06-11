@@ -89,6 +89,54 @@ func TestTrojanLink(t *testing.T) {
 	}
 }
 
+func TestShadowsocksLink(t *testing.T) {
+	ib := &domain.Inbound{
+		Tag:        "ss",
+		Protocol:   domain.ProtocolShadowsocks,
+		PublicHost: "ss.example.com",
+		PublicPort: 8388,
+		Network:    domain.NetworkTCP,
+		Security:   domain.SecurityNone,
+		Method:     "aes-256-gcm",
+		Remark:     "JP",
+	}
+	got, err := Link(vlessUser(), ib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// userinfo must be base64url(method:password) and host/port + remark intact.
+	wantUserinfo := base64.RawURLEncoding.EncodeToString([]byte("aes-256-gcm:s3cr3t"))
+	want := "ss://" + wantUserinfo + "@ss.example.com:8388#alice@example.com@JP"
+	if got != want {
+		t.Errorf("ss link mismatch:\n got: %s\nwant: %s", got, want)
+	}
+}
+
+func TestXHTTPLinkParams(t *testing.T) {
+	ib := &domain.Inbound{
+		Tag:         "vless-xhttp",
+		Protocol:    domain.ProtocolVLESS,
+		PublicHost:  "cdn.example.com",
+		PublicPort:  443,
+		Network:     domain.NetworkXHTTP,
+		Security:    domain.SecurityTLS,
+		WSPath:      "/xh",
+		HostHeader:  "cdn.example.com",
+		SNI:         "cdn.example.com",
+		XHTTPMode:   "stream-one",
+		Fingerprint: "chrome",
+	}
+	got, err := Link(vlessUser(), ib)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"type=xhttp", "mode=stream-one", "path=%2Fxh", "host=cdn.example.com", "security=tls"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("xhttp link missing %q in %s", want, got)
+		}
+	}
+}
+
 func TestVMessLinkDecodes(t *testing.T) {
 	ib := &domain.Inbound{
 		Tag:        "vmess-ws",
@@ -145,6 +193,32 @@ func TestClashYAMLContainsProxy(t *testing.T) {
 	}
 	s := string(out)
 	for _, want := range []string{"proxies:", "type: vless", "network: ws", "PROXY"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("clash yaml missing %q:\n%s", want, s)
+		}
+	}
+}
+
+func TestClashShadowsocksAndXHTTP(t *testing.T) {
+	ss := &domain.Inbound{
+		Tag: "ss", Protocol: domain.ProtocolShadowsocks,
+		PublicHost: "ss", PublicPort: 8388, Network: domain.NetworkTCP,
+		Security: domain.SecurityNone, Method: "chacha20-ietf-poly1305",
+	}
+	xh := &domain.Inbound{
+		Tag: "vless-xhttp", Protocol: domain.ProtocolVLESS,
+		PublicHost: "cdn", PublicPort: 443, Network: domain.NetworkXHTTP,
+		Security: domain.SecurityTLS, WSPath: "/xh", SNI: "cdn", XHTTPMode: "stream-one",
+	}
+	out, err := Clash(vlessUser(), []*domain.Inbound{ss, xh})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	for _, want := range []string{
+		"type: ss", "cipher: chacha20-ietf-poly1305",
+		"network: xhttp", "xhttp-opts:", "mode: stream-one",
+	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("clash yaml missing %q:\n%s", want, s)
 		}

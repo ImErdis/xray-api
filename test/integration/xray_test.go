@@ -24,6 +24,13 @@ import (
 	"github.com/ImErdis/xray-api/internal/xray"
 )
 
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
 func dialTestNode(t *testing.T) xray.Client {
 	t.Helper()
 	addr := os.Getenv("XRAY_TEST_ADDR")
@@ -59,10 +66,15 @@ func TestLiveAddRemoveAndStats(t *testing.T) {
 	if tag == "" {
 		tag = "vless-ws"
 	}
+	// Protocol/method follow the inbound the tag points at, so the same test
+	// exercises whichever inbound the operator configured (vless/trojan/
+	// shadowsocks, any transport).
 	acc := xray.Account{
-		Protocol: "vless",
+		Protocol: envOr("XRAY_TEST_PROTOCOL", "vless"),
 		Email:    "it-" + uuid.NewString() + "@test",
 		UUID:     uuid.NewString(),
+		Password: uuid.NewString(),
+		Method:   envOr("XRAY_TEST_METHOD", "aes-256-gcm"),
 	}
 
 	if err := c.AddUser(ctx, tag, acc); err != nil {

@@ -82,6 +82,51 @@ curl -sX POST localhost:8080/api/v1/nodes/$NODE_ID/inbounds \
        "network":"ws","security":"tls","ws_path":"/ws","sni":"de1.example.com"}'
 ```
 
+## Supported protocols and transports
+
+What the control plane can **provision and render into subscription links**:
+
+| Protocol | Notes |
+|---|---|
+| VLESS | incl. `xtls-rprx-vision` flow (tcp+tls/reality) |
+| VMess | AEAD (alterId 0) |
+| Trojan | password auth |
+| Shadowsocks | AEAD ciphers: `aes-128-gcm`, `aes-256-gcm`, `chacha20-ietf-poly1305`, `xchacha20-ietf-poly1305`, `none`. The cipher is an inbound-level `method` shared by all users; register it on the inbound. |
+
+| Transport (`network`) | Security (`security`) |
+|---|---|
+| `tcp`, `ws`, `grpc`, `httpupgrade`, `xhttp` | `none`, `tls`, `reality` |
+
+For **XHTTP**, set `network: xhttp`, the `ws_path` field as the XHTTP path, and
+optionally `xhttp_mode` (`auto`/`packet-up`/`stream-up`/`stream-one`). XHTTP is
+the current recommended CDN-friendly transport (WebSocket is deprecated
+upstream).
+
+Anything else Xray supports (WireGuard, mKCP, SOCKS/HTTP, ECH) still runs fine
+on the node — the control plane just doesn't provision users into it. Routing,
+outbounds, DNS, fallbacks, and balancers are owned entirely by the node's own
+config file and are not touched by the API.
+
+### Shadowsocks inbound example
+
+```json
+{ "tag": "ss-multi", "port": 8388, "protocol": "shadowsocks",
+  "settings": { "clients": [], "network": "tcp,udp" } }
+```
+
+Register it with `"protocol":"shadowsocks","method":"aes-256-gcm"`. Each user's
+generated password is pushed at runtime.
+
+### VLESS over XHTTP inbound example
+
+```json
+{ "tag": "vless-xhttp", "port": 2096, "protocol": "vless",
+  "settings": { "clients": [], "decryption": "none" },
+  "streamSettings": { "network": "xhttp", "security": "tls",
+    "xhttpSettings": { "path": "/xh", "mode": "auto" },
+    "tlsSettings": { "...": "..." } } }
+```
+
 ## Connecting the gRPC API over TLS (optional)
 
 To avoid a private network, add a TLS `streamSettings` block to the `api-in`

@@ -24,6 +24,9 @@ Highlights:
   expiry sweeping
 - **Operable** — Prometheus `/metrics`, per-IP rate limiting on public
   endpoints, structured logs, OpenAPI spec
+- **Protocols** — VLESS (incl. `xtls-rprx-vision`), VMess, Trojan, Shadowsocks
+  (AEAD), over tcp/ws/grpc/httpupgrade/**xhttp** with none/tls/reality; see
+  [`docs/node-setup.md`](docs/node-setup.md)
 
 ## How it works
 

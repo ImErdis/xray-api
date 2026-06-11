@@ -109,6 +109,8 @@ type inboundRequest struct {
 	RealityPublicKey string          `json:"reality_public_key"`
 	RealityShortID   string          `json:"reality_short_id"`
 	Flow             string          `json:"flow"`
+	Method           string          `json:"method"`
+	XHTTPMode        string          `json:"xhttp_mode"`
 	Remark           string          `json:"remark"`
 }
 
@@ -129,6 +131,8 @@ func (req inboundRequest) toInput() service.InboundInput {
 		RealityPublicKey: req.RealityPublicKey,
 		RealityShortID:   req.RealityShortID,
 		Flow:             req.Flow,
+		Method:           req.Method,
+		XHTTPMode:        req.XHTTPMode,
 		Remark:           req.Remark,
 	}
 }

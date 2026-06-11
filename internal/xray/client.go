@@ -19,11 +19,12 @@ import (
 
 // Account is the protocol-specific identity to provision on an inbound.
 type Account struct {
-	Protocol string // vless|vmess|trojan
+	Protocol string // vless|vmess|trojan|shadowsocks
 	Email    string
 	UUID     string // vless/vmess
-	Password string // trojan
+	Password string // trojan/shadowsocks
 	Flow     string // vless only
+	Method   string // shadowsocks cipher
 }
 
 // UserTraffic is one user's up/down counters from a stats query.

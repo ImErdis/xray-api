@@ -153,6 +153,8 @@ type InboundInput struct {
 	RealityPublicKey string
 	RealityShortID   string
 	Flow             string
+	Method           string
+	XHTTPMode        string
 	Remark           string
 }
 
@@ -174,6 +176,21 @@ func (in InboundInput) validate() error {
 	}
 	if in.Security != "" && !in.Security.Valid() {
 		return domain.Validationf("invalid security")
+	}
+	if in.Protocol == domain.ProtocolShadowsocks {
+		if in.Method == "" {
+			return domain.Validationf("method is required for shadowsocks")
+		}
+		if !domain.ShadowsocksMethods[in.Method] {
+			return domain.Validationf("unsupported shadowsocks method")
+		}
+	}
+	if in.XHTTPMode != "" {
+		switch in.XHTTPMode {
+		case "auto", "packet-up", "stream-up", "stream-one":
+		default:
+			return domain.Validationf("invalid xhttp_mode")
+		}
 	}
 	return nil
 }
@@ -250,6 +267,8 @@ func inboundFromInput(in InboundInput) *domain.Inbound {
 		RealityPublicKey: in.RealityPublicKey,
 		RealityShortID:   in.RealityShortID,
 		Flow:             in.Flow,
+		Method:           in.Method,
+		XHTTPMode:        in.XHTTPMode,
 		Remark:           in.Remark,
 	}
 }

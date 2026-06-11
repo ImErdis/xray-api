@@ -23,6 +23,8 @@ func Link(u *domain.User, ib *domain.Inbound) (string, error) {
 		return trojanLink(u, ib), nil
 	case domain.ProtocolVMess:
 		return vmessLink(u, ib), nil
+	case domain.ProtocolShadowsocks:
+		return shadowsocksLink(u, ib), nil
 	default:
 		return "", fmt.Errorf("unsupported protocol %q", ib.Protocol)
 	}
@@ -57,6 +59,17 @@ func streamParams(ib *domain.Inbound) url.Values {
 	case domain.NetworkGRPC:
 		if ib.GRPCServiceName != "" {
 			q.Set("serviceName", ib.GRPCServiceName)
+		}
+	case domain.NetworkXHTTP:
+		// XHTTP reuses the path/host fields; mode defaults to auto client-side.
+		if ib.WSPath != "" {
+			q.Set("path", ib.WSPath)
+		}
+		if ib.HostHeader != "" {
+			q.Set("host", ib.HostHeader)
+		}
+		if ib.XHTTPMode != "" {
+			q.Set("mode", ib.XHTTPMode)
 		}
 	}
 
@@ -111,6 +124,28 @@ func trojanLink(u *domain.User, ib *domain.Inbound) string {
 		Fragment: remark(u, ib),
 	}
 	return uri.String()
+}
+
+// shadowsocksLink encodes the SIP002 ss:// format:
+//
+//	ss://base64url(method:password)@host:port#remark
+//
+// Transport is plain TCP (the common SS deployment); Xray SS over ws/grpc is
+// uncommon and omitted from the link for client compatibility.
+func shadowsocksLink(u *domain.User, ib *domain.Inbound) string {
+	method := ib.Method
+	if method == "" {
+		method = "aes-256-gcm"
+	}
+	userinfo := base64.RawURLEncoding.EncodeToString([]byte(method + ":" + u.TrojanPassword))
+	uri := url.URL{
+		Scheme:   "ss",
+		Host:     hostPort(ib),
+		Fragment: remark(u, ib),
+	}
+	// SIP002 puts the base64 method:password in the userinfo, unencoded by
+	// url.URL (which would percent-encode it), so assemble manually.
+	return "ss://" + userinfo + "@" + uri.Host + "#" + url.PathEscape(remark(u, ib))
 }
 
 // vmessLink encodes the classic base64-JSON vmess:// format (v2rayN schema v2).

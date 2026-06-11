@@ -6,17 +6,29 @@ import "time"
 type Protocol string
 
 const (
-	ProtocolVLESS  Protocol = "vless"
-	ProtocolVMess  Protocol = "vmess"
-	ProtocolTrojan Protocol = "trojan"
+	ProtocolVLESS       Protocol = "vless"
+	ProtocolVMess       Protocol = "vmess"
+	ProtocolTrojan      Protocol = "trojan"
+	ProtocolShadowsocks Protocol = "shadowsocks"
 )
 
 func (p Protocol) Valid() bool {
 	switch p {
-	case ProtocolVLESS, ProtocolVMess, ProtocolTrojan:
+	case ProtocolVLESS, ProtocolVMess, ProtocolTrojan, ProtocolShadowsocks:
 		return true
 	}
 	return false
+}
+
+// ShadowsocksMethods are the AEAD ciphers supported for provisioning. The
+// canonical client-facing names are used (Xray also accepts the non-ietf
+// chacha aliases).
+var ShadowsocksMethods = map[string]bool{
+	"aes-128-gcm":             true,
+	"aes-256-gcm":             true,
+	"chacha20-ietf-poly1305":  true,
+	"xchacha20-ietf-poly1305": true,
+	"none":                    true,
 }
 
 // Network is the stream transport of an inbound.
@@ -27,11 +39,12 @@ const (
 	NetworkWS          Network = "ws"
 	NetworkGRPC        Network = "grpc"
 	NetworkHTTPUpgrade Network = "httpupgrade"
+	NetworkXHTTP       Network = "xhttp"
 )
 
 func (n Network) Valid() bool {
 	switch n {
-	case NetworkTCP, NetworkWS, NetworkGRPC, NetworkHTTPUpgrade:
+	case NetworkTCP, NetworkWS, NetworkGRPC, NetworkHTTPUpgrade, NetworkXHTTP:
 		return true
 	}
 	return false
@@ -80,6 +93,13 @@ type Inbound struct {
 	RealityPublicKey string `json:"reality_public_key,omitempty"`
 	RealityShortID   string `json:"reality_short_id,omitempty"`
 	Flow             string `json:"flow,omitempty"`
+
+	// Method is the Shadowsocks AEAD cipher (shared by all users on an SS
+	// inbound); empty for other protocols.
+	Method string `json:"method,omitempty"`
+	// XHTTPMode is the XHTTP transport mode (auto|packet-up|stream-up|
+	// stream-one); empty defaults to auto on the client side.
+	XHTTPMode string `json:"xhttp_mode,omitempty"`
 
 	Remark    string    `json:"remark,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
