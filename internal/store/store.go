@@ -42,16 +42,37 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
-	goose.SetBaseFS(migrations)
-	if err := goose.SetDialect("postgres"); err != nil {
+	if err := migrate(ctx, db); err != nil {
 		db.Close()
 		return nil, err
 	}
-	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("run migrations: %w", err)
-	}
 	return &Store{db: db}, nil
+}
+
+// advisoryLockKey serializes concurrent migrators (multiple replicas booting,
+// parallel test packages) via a Postgres advisory lock.
+const advisoryLockKey = 0x78726179 // "xray"
+
+func migrate(ctx context.Context, db *sql.DB) error {
+	goose.SetBaseFS(migrations)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+	// Hold the lock on a dedicated session for the duration of goose.Up.
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire migration conn: %w", err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", advisoryLockKey); err != nil {
+		return fmt.Errorf("acquire migration lock: %w", err)
+	}
+	defer conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", advisoryLockKey)
+
+	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }

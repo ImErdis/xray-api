@@ -11,16 +11,16 @@ import (
 )
 
 const userCols = `id, email, uuid, trojan_password, plan_id, status, data_limit_bytes,
-	used_upload_bytes, used_download_bytes, expires_at, sub_token, note,
+	used_upload_bytes, used_download_bytes, expires_at, sub_token, note, external_id,
 	created_at, updated_at`
 
 func scanUser(row interface{ Scan(...any) error }) (*domain.User, error) {
 	var u domain.User
-	var planID sql.NullString
+	var planID, externalID sql.NullString
 	var expires sql.NullTime
 	err := row.Scan(&u.ID, &u.Email, &u.UUID, &u.TrojanPassword, &planID, &u.Status,
 		&u.DataLimitBytes, &u.UsedUploadBytes, &u.UsedDownloadBytes, &expires,
-		&u.SubToken, &u.Note, &u.CreatedAt, &u.UpdatedAt)
+		&u.SubToken, &u.Note, &externalID, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -30,6 +30,9 @@ func scanUser(row interface{ Scan(...any) error }) (*domain.User, error) {
 	if expires.Valid {
 		u.ExpiresAt = &expires.Time
 	}
+	if externalID.Valid {
+		u.ExternalID = &externalID.String
+	}
 	return &u, nil
 }
 
@@ -37,10 +40,10 @@ func scanUser(row interface{ Scan(...any) error }) (*domain.User, error) {
 func (s *Store) CreateUserTx(ctx context.Context, tx *sql.Tx, u *domain.User) error {
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO users (id, email, uuid, trojan_password, plan_id, status,
-			data_limit_bytes, expires_at, sub_token, note)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+			data_limit_bytes, expires_at, sub_token, note, external_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		u.ID, u.Email, u.UUID, u.TrojanPassword, u.PlanID, u.Status,
-		u.DataLimitBytes, u.ExpiresAt, u.SubToken, u.Note)
+		u.DataLimitBytes, u.ExpiresAt, u.SubToken, u.Note, u.ExternalID)
 	return mapErr(err)
 }
 
@@ -52,6 +55,16 @@ func (s *Store) GetUser(ctx context.Context, id string) (*domain.User, error) {
 func (s *Store) GetUserBySubToken(ctx context.Context, token string) (*domain.User, error) {
 	return scanUser(s.db.QueryRowContext(ctx,
 		`SELECT `+userCols+` FROM users WHERE sub_token = $1`, token))
+}
+
+func (s *Store) GetUserByExternalID(ctx context.Context, externalID string) (*domain.User, error) {
+	return scanUser(s.db.QueryRowContext(ctx,
+		`SELECT `+userCols+` FROM users WHERE external_id = $1`, externalID))
+}
+
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	return scanUser(s.db.QueryRowContext(ctx,
+		`SELECT `+userCols+` FROM users WHERE email = $1`, email))
 }
 
 // UserFilter is the query filter for ListUsers.
@@ -123,9 +136,10 @@ func (s *Store) ListUsers(ctx context.Context, f UserFilter) ([]*domain.User, in
 func (s *Store) UpdateUser(ctx context.Context, u *domain.User) error {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE users SET plan_id=$2, status=$3, data_limit_bytes=$4,
-			expires_at=$5, note=$6, sub_token=$7, updated_at=now()
+			expires_at=$5, note=$6, sub_token=$7, external_id=$8, updated_at=now()
 		WHERE id = $1`,
-		u.ID, u.PlanID, u.Status, u.DataLimitBytes, u.ExpiresAt, u.Note, u.SubToken)
+		u.ID, u.PlanID, u.Status, u.DataLimitBytes, u.ExpiresAt, u.Note,
+		u.SubToken, u.ExternalID)
 	return requireRow(res, err)
 }
 

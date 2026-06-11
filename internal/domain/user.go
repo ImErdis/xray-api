@@ -30,8 +30,13 @@ type User struct {
 	ExpiresAt *time.Time `json:"expires_at"`
 	SubToken  string     `json:"-"`
 	Note      string     `json:"note,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+
+	// ExternalID links the user to an external billing system (Stripe
+	// subscription id, WooCommerce order id, ...). Unique when set.
+	ExternalID *string `json:"external_id,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // UsedTotalBytes is the combined up+down usage counted against the quota.

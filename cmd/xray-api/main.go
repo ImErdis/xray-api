@@ -116,12 +116,14 @@ func runServe(args []string) int {
 	}
 	defer mgr.Stop()
 
+	users := service.NewUserService(st, mgr, cfg.PublicBaseURL)
 	deps := httpapi.Deps{
 		Store:   st,
 		Nodes:   service.NewNodeService(st, mgr, worker.DefaultDial),
 		Plans:   service.NewPlanService(st),
-		Users:   service.NewUserService(st, mgr, cfg.PublicBaseURL),
+		Users:   users,
 		APIKeys: service.NewAPIKeyService(st),
+		Billing: service.NewBillingService(st, users),
 		Log:     log,
 		Config:  cfg,
 	}

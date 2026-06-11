@@ -164,6 +164,32 @@ func (s *Server) handleResetTraffic(w http.ResponseWriter, r *http.Request) {
 	s.userAction(w, r, s.users.ResetTraffic)
 }
 
+type renewUserRequest struct {
+	Days         int     `json:"days"`
+	ResetTraffic bool    `json:"reset_traffic"`
+	PlanID       *string `json:"plan_id"`
+}
+
+// handleRenewUser is the billing-cycle endpoint: extend expiry, optionally
+// reset traffic, switch plans, and reactivate — atomically.
+func (s *Server) handleRenewUser(w http.ResponseWriter, r *http.Request) {
+	var req renewUserRequest
+	if err := decodeJSON(r, &req); err != nil {
+		badRequest(w, err.Error())
+		return
+	}
+	u, err := s.users.Renew(r.Context(), chi.URLParam(r, "id"), service.RenewInput{
+		Days:         req.Days,
+		ResetTraffic: req.ResetTraffic,
+		PlanID:       req.PlanID,
+	})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, s.userResponse(u))
+}
+
 func (s *Server) handleRotateSubToken(w http.ResponseWriter, r *http.Request) {
 	s.userAction(w, r, s.users.RotateSubToken)
 }

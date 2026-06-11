@@ -38,6 +38,7 @@ type CreateInput struct {
 	DataLimitBytes *int64     // overrides plan limit when set
 	ExpiresAt      *time.Time // overrides plan duration when set
 	Note           string
+	ExternalID     *string // billing-system reference (unique when set)
 }
 
 func (s *UserService) Create(ctx context.Context, in CreateInput) (*domain.User, error) {
@@ -86,6 +87,7 @@ func (s *UserService) Create(ctx context.Context, in CreateInput) (*domain.User,
 		ExpiresAt:      expires,
 		SubToken:       randToken(24),
 		Note:           in.Note,
+		ExternalID:     in.ExternalID,
 	}
 
 	err = s.store.WithTx(ctx, func(tx *sql.Tx) error {
@@ -230,6 +232,69 @@ func (s *UserService) ResetTraffic(ctx context.Context, id string) (*domain.User
 		}
 	}
 	s.mgr.ReconcileForUser(ctx, id)
+	return s.store.GetUser(ctx, id)
+}
+
+// RenewInput controls a subscription renewal.
+type RenewInput struct {
+	// Days extends expiry by this many days, counted from the current expiry
+	// when it lies in the future, otherwise from now (so early renewals stack
+	// and late renewals don't grant retroactive time).
+	Days int
+	// ResetTraffic zeroes usage counters (typical for monthly plans).
+	ResetTraffic bool
+	// PlanID optionally switches the plan; the new plan's data limit is
+	// re-snapshotted onto the user.
+	PlanID *string
+}
+
+// Renew atomically extends a user's subscription and reactivates them. This is
+// the endpoint billing systems should call on successful payment.
+func (s *UserService) Renew(ctx context.Context, id string, in RenewInput) (*domain.User, error) {
+	if in.Days <= 0 && !in.ResetTraffic && in.PlanID == nil {
+		return nil, domain.Validationf("renew requires days > 0, reset_traffic, or plan_id")
+	}
+	u, err := s.store.GetUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if in.PlanID != nil {
+		plan, err := s.store.GetPlan(ctx, *in.PlanID)
+		if err != nil {
+			return nil, err
+		}
+		u.PlanID = in.PlanID
+		u.DataLimitBytes = plan.DataLimitBytes
+	}
+
+	if in.Days > 0 {
+		base := time.Now()
+		if u.ExpiresAt != nil && u.ExpiresAt.After(base) {
+			base = *u.ExpiresAt
+		}
+		t := base.AddDate(0, 0, in.Days)
+		u.ExpiresAt = &t
+	}
+
+	if in.ResetTraffic {
+		if err := s.store.ResetTraffic(ctx, id); err != nil {
+			return nil, err
+		}
+		u.UsedUploadBytes, u.UsedDownloadBytes = 0, 0
+	}
+
+	// Reactivate unless the admin explicitly disabled the user, or they would
+	// still be over quota / expired after this renewal.
+	if u.Status != domain.UserStatusDisabled && !u.OverQuota() &&
+		(u.ExpiresAt == nil || u.ExpiresAt.After(time.Now())) {
+		u.Status = domain.UserStatusActive
+	}
+
+	if err := s.store.UpdateUser(ctx, u); err != nil {
+		return nil, err
+	}
+	s.mgr.ReconcileForUser(ctx, u.ID)
 	return s.store.GetUser(ctx, id)
 }
 
