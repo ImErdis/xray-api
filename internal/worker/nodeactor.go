@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ImErdis/xray-api/internal/domain"
+	"github.com/ImErdis/xray-api/internal/metrics"
 	"github.com/ImErdis/xray-api/internal/xray"
 )
 
@@ -28,6 +29,11 @@ type nodeActor struct {
 	client    xray.Client
 	failCount int
 	online    bool
+	// lastUptime is the node's uptime at the previous successful ping. A drop
+	// means Xray restarted (runtime users wiped) even if no probe ever failed,
+	// so the actor reconciles immediately instead of waiting for the periodic
+	// pass.
+	lastUptime uint32
 
 	// pendingDeltas holds traffic that was read+reset from the node but not yet
 	// persisted (DB write failed). It is merged into the next collection so a
@@ -114,10 +120,11 @@ func (a *nodeActor) dropClient() {
 }
 
 func (a *nodeActor) checkHealth(ctx context.Context) {
+	var uptime uint32
 	c, err := a.ensureClient()
 	if err == nil {
 		cctx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		err = c.Ping(cctx)
+		uptime, err = c.Ping(cctx)
 		cancel()
 	}
 	if err != nil {
@@ -126,6 +133,7 @@ func (a *nodeActor) checkHealth(ctx context.Context) {
 		if a.failCount >= healthFailThreshold && a.online {
 			a.online = false
 			a.setHealth(ctx, domain.NodeStatusOffline, err.Error(), nil)
+			metrics.NodeUp.WithLabelValues(a.node.Name).Set(0)
 			a.log.Warn("node went offline", "err", err)
 		} else if a.failCount < healthFailThreshold {
 			a.setHealth(ctx, a.node.Status, err.Error(), nil)
@@ -136,11 +144,16 @@ func (a *nodeActor) checkHealth(ctx context.Context) {
 	a.failCount = 0
 	now := time.Now()
 	wasOffline := !a.online
+	restarted := a.lastUptime > 0 && uptime < a.lastUptime
+	a.lastUptime = uptime
 	a.online = true
 	a.setHealth(ctx, domain.NodeStatusOnline, "", &now)
-	if wasOffline {
-		// Xray may have restarted (runtime users wiped) — converge from DB.
-		a.log.Info("node online, reconciling")
+	metrics.NodeUp.WithLabelValues(a.node.Name).Set(1)
+	if wasOffline || restarted {
+		// Xray restarted (or was unreachable): runtime users are wiped on
+		// restart, so converge from DB-desired state now. The uptime check
+		// catches fast restarts that never miss a health probe.
+		a.log.Info("node online, reconciling", "restart_detected", restarted)
 		a.reconcile(ctx)
 	}
 }

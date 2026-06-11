@@ -81,7 +81,7 @@ func (s *NodeService) probe(ctx context.Context, n *domain.Node) (domain.NodeSta
 	defer c.Close()
 	pctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	if err := c.Ping(pctx); err != nil {
+	if _, err := c.Ping(pctx); err != nil {
 		return domain.NodeStatusOffline, err.Error()
 	}
 	return domain.NodeStatusOnline, ""

@@ -35,8 +35,10 @@ type UserTraffic struct {
 
 // Client talks to a single Xray node's gRPC API.
 type Client interface {
-	// Ping verifies connectivity (and implicitly that StatsService is up).
-	Ping(ctx context.Context) error
+	// Ping verifies connectivity and returns the node's uptime in seconds.
+	// A decreasing uptime between pings means Xray restarted (and wiped all
+	// runtime-added users), so the caller must reconcile.
+	Ping(ctx context.Context) (uptimeSeconds uint32, err error)
 	// AddUser provisions an account on the given inbound tag. Idempotent:
 	// an already-present user is treated as success.
 	AddUser(ctx context.Context, inboundTag string, acc Account) error
@@ -88,10 +90,10 @@ func Dial(opts DialOptions) (Client, error) {
 
 func (c *grpcClient) Close() error { return c.conn.Close() }
 
-func (c *grpcClient) Ping(ctx context.Context) error {
-	_, err := c.stats.GetSysStats(ctx, &scommand.SysStatsRequest{})
+func (c *grpcClient) Ping(ctx context.Context) (uint32, error) {
+	resp, err := c.stats.GetSysStats(ctx, &scommand.SysStatsRequest{})
 	if err != nil {
-		return fmt.Errorf("get sys stats: %w", err)
+		return 0, fmt.Errorf("get sys stats: %w", err)
 	}
-	return nil
+	return resp.GetUptime(), nil
 }

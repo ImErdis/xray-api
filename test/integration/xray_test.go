@@ -47,8 +47,12 @@ func TestLiveAddRemoveAndStats(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	if err := c.Ping(ctx); err != nil {
+	uptime, err := c.Ping(ctx)
+	if err != nil {
 		t.Fatalf("ping: %v", err)
+	}
+	if uptime == 0 {
+		t.Error("expected non-zero uptime from a running node")
 	}
 
 	tag := os.Getenv("XRAY_TEST_INBOUND_TAG")
