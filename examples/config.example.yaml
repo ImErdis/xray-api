@@ -1,0 +1,40 @@
+# xray-api configuration. All values can be overridden with environment
+# variables named XRAY_API_<SECTION>_<KEY>, e.g. XRAY_API_DATABASE_DSN.
+
+# Address the HTTP API listens on.
+listen: ":8080"
+
+# Base URL clients use to reach this server. Used to build subscription URLs
+# returned by the API (must be reachable by your customers).
+public_base_url: "https://panel.example.com"
+
+database:
+  # PostgreSQL DSN. Migrations run automatically on startup.
+  dsn: "postgres://xray:xray@localhost:5432/xray_api?sslmode=disable"
+
+auth:
+  # Optional. If set, this key is accepted as a valid admin key in addition to
+  # keys stored in the database. Useful for first-run bootstrap; prefer issuing
+  # real keys with `xray-api gen-key` and leaving this empty in production.
+  bootstrap_api_key: ""
+
+workers:
+  # How often each node is health-probed.
+  health_interval: 30s
+  # How often per-user traffic is polled (reset-on-read). Shorter = tighter
+  # quota enforcement, more DB writes.
+  stats_interval: 30s
+  # Full reconcile pass cadence (in addition to event-driven reconciles).
+  reconcile_interval: 5m
+  # Traffic snapshots older than this are pruned. 0 disables pruning.
+  snapshot_retention_days: 90
+
+subscription:
+  # Advertised to clients via the profile-update-interval header (hours).
+  profile_update_interval_hours: 12
+  # Optional fixed title shown in clients; defaults to the user's email.
+  profile_title: ""
+
+log:
+  level: "info"   # debug|info|warn|error
+  format: "text"  # text|json

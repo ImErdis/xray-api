@@ -1,0 +1,46 @@
+# Local end-to-end stack: API + Postgres + a real Xray node.
+#
+#   docker compose -f deploy/docker-compose.dev.yml up --build
+#
+# The Xray node mounts docs/example-node-config.json and exposes its gRPC API
+# on the compose network as xray:10085, so register it with:
+#   api_address=xray  api_port=10085
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: xray
+      POSTGRES_PASSWORD: xray
+      POSTGRES_DB: xray_api
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xray"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  xray:
+    image: ghcr.io/xtls/xray-core:latest
+    command: ["run", "-c", "/etc/xray/config.json"]
+    volumes:
+      - ../docs/example-node-config.json:/etc/xray/config.json:ro
+    # gRPC API is on 10085 inside the compose network. Not published to the host
+    # on purpose (it is unauthenticated). Port 443 is the proxy inbound.
+    ports:
+      - "443:443"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      XRAY_API_LISTEN: ":8080"
+      XRAY_API_PUBLIC_BASE_URL: "http://localhost:8080"
+      XRAY_API_DATABASE_DSN: "postgres://xray:xray@postgres:5432/xray_api?sslmode=disable"
+      XRAY_API_AUTH_BOOTSTRAP_API_KEY: "dev-bootstrap-key"
+      XRAY_API_WORKERS_STATS_INTERVAL: "10s"
+      XRAY_API_LOG_LEVEL: "debug"
+    ports:
+      - "8080:8080"

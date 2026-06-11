@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: xray
+      POSTGRES_PASSWORD: xray
+      POSTGRES_DB: xray_api
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xray"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      XRAY_API_LISTEN: ":8080"
+      XRAY_API_PUBLIC_BASE_URL: "http://localhost:8080"
+      XRAY_API_DATABASE_DSN: "postgres://xray:xray@postgres:5432/xray_api?sslmode=disable"
+      # Set a bootstrap key for first run, then create real keys and remove it.
+      XRAY_API_AUTH_BOOTSTRAP_API_KEY: "${BOOTSTRAP_API_KEY:-}"
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
