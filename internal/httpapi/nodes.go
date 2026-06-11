@@ -16,6 +16,10 @@ type nodeRequest struct {
 	APITLS           bool   `json:"api_tls"`
 	APITLSServerName string `json:"api_tls_server_name"`
 	APITLSInsecure   bool   `json:"api_tls_insecure"`
+	// mTLS PEM material. Omit to leave unchanged on update; send "" to clear.
+	APICACert     *string `json:"api_ca_cert"`
+	APIClientCert *string `json:"api_client_cert"`
+	APIClientKey  *string `json:"api_client_key"`
 }
 
 func (req nodeRequest) toInput() service.NodeInput {
@@ -26,6 +30,9 @@ func (req nodeRequest) toInput() service.NodeInput {
 		APITLS:           req.APITLS,
 		APITLSServerName: req.APITLSServerName,
 		APITLSInsecure:   req.APITLSInsecure,
+		APICACert:        req.APICACert,
+		APIClientCert:    req.APIClientCert,
+		APIClientKey:     req.APIClientKey,
 	}
 }
 

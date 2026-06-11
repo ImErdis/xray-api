@@ -24,6 +24,9 @@ Highlights:
   expiry sweeping
 - **Operable** — Prometheus `/metrics`, per-IP rate limiting on public
   endpoints, structured logs, OpenAPI spec
+- **Secure node links** — TLS with CA pinning and optional mutual TLS (client
+  certificates) for the control-plane→node gRPC connection; see
+  [`docs/security.md`](docs/security.md)
 - **Protocols** — VLESS (incl. `xtls-rprx-vision`), VMess, Trojan, Shadowsocks
   (AEAD), over tcp/ws/grpc/httpupgrade/**xhttp** with none/tls/reality; see
   [`docs/node-setup.md`](docs/node-setup.md)

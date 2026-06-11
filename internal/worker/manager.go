@@ -33,6 +33,9 @@ func DefaultDial(n *domain.Node) (xray.Client, error) {
 		TLS:           n.APITLS,
 		TLSServerName: n.APITLSServerName,
 		TLSInsecure:   n.APITLSInsecure,
+		CACertPEM:     n.APICACert,
+		ClientCertPEM: n.APIClientCert,
+		ClientKeyPEM:  n.APIClientKey,
 		DialTimeout:   10 * time.Second,
 	})
 }

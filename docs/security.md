@@ -14,10 +14,35 @@ Acceptable ways to let `xray-api` reach a node's gRPC port:
 2. **WireGuard / VPN mesh** — nodes join an overlay network; register the node
    with its overlay IP.
 3. **SSH tunnel** — forward the remote 10085 to a local port.
-4. **TLS** — terminate TLS on the `api-in` inbound and register the node with
-   `api_tls: true` (and `api_tls_insecure: true` for self-signed certs). This
-   protects confidentiality/integrity in transit but still does not
-   authenticate the *client*; combine with network ACLs. Mutual TLS is planned.
+4. **TLS with CA pinning** — terminate TLS on the `api-in` inbound and register
+   the node with `api_tls: true` plus `api_ca_cert` (the PEM that signed the
+   node's server cert). The control plane then verifies the node's identity
+   against your CA rather than the system roots, and against
+   `api_tls_server_name`. Use `api_tls_insecure: true` only to skip
+   verification in throwaway setups.
+5. **Mutual TLS (mTLS)** — additionally register `api_client_cert` and
+   `api_client_key` (PEM). The control plane presents this client certificate
+   so the node side can authenticate *it*, closing the "anyone who reaches the
+   port can manage users" gap. The node enforces client-cert verification
+   either via a TLS-terminating reverse proxy in front of the API inbound
+   (e.g. nginx `ssl_verify_client on` / `ssl_client_certificate ca.pem`) or any
+   gateway that does mTLS; the control-plane side is identical regardless.
+
+### mTLS fields on a node
+
+| Field | Meaning |
+|---|---|
+| `api_tls` | enable TLS for the gRPC connection |
+| `api_tls_server_name` | expected server certificate name (SNI + verification) |
+| `api_ca_cert` | PEM CA that signed the node's server cert (pinning) |
+| `api_client_cert` | PEM client certificate the control plane presents (mTLS) |
+| `api_client_key` | PEM private key for the client cert — **write-only**, never returned by the API; `api_has_client_key` reports whether one is stored |
+| `api_tls_insecure` | skip server verification (testing only) |
+
+Cert/CA material is validated when the node is created or updated (malformed
+PEM or a cert/key mismatch is rejected with `400`), and the private key is
+stored but never serialized back. Omit the cert fields on a `PATCH` to leave
+them unchanged; send `""` to clear one.
 
 The bundled `docs/example-node-config.json` binds the API inbound to
 `127.0.0.1` so that, by default, it is unreachable from outside the host until

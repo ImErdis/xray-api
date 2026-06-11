@@ -9,13 +9,15 @@ import (
 )
 
 const nodeCols = `id, name, api_address, api_port, api_tls, api_tls_server_name,
-	api_tls_insecure, status, last_seen_at, last_error, created_at, updated_at`
+	api_tls_insecure, api_ca_cert, api_client_cert, api_client_key,
+	status, last_seen_at, last_error, created_at, updated_at`
 
 func scanNode(row interface{ Scan(...any) error }) (*domain.Node, error) {
 	var n domain.Node
 	var lastSeen sql.NullTime
 	err := row.Scan(&n.ID, &n.Name, &n.APIAddress, &n.APIPort, &n.APITLS,
-		&n.APITLSServerName, &n.APITLSInsecure, &n.Status, &lastSeen,
+		&n.APITLSServerName, &n.APITLSInsecure, &n.APICACert, &n.APIClientCert,
+		&n.APIClientKey, &n.Status, &lastSeen,
 		&n.LastError, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		return nil, mapErr(err)
@@ -23,16 +25,19 @@ func scanNode(row interface{ Scan(...any) error }) (*domain.Node, error) {
 	if lastSeen.Valid {
 		n.LastSeenAt = &lastSeen.Time
 	}
+	n.APIHasClientKey = n.APIClientKey != ""
 	return &n, nil
 }
 
 func (s *Store) CreateNode(ctx context.Context, n *domain.Node) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO nodes (id, name, api_address, api_port, api_tls,
-			api_tls_server_name, api_tls_insecure, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			api_tls_server_name, api_tls_insecure, api_ca_cert, api_client_cert,
+			api_client_key, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		n.ID, n.Name, n.APIAddress, n.APIPort, n.APITLS,
-		n.APITLSServerName, n.APITLSInsecure, n.Status)
+		n.APITLSServerName, n.APITLSInsecure, n.APICACert, n.APIClientCert,
+		n.APIClientKey, n.Status)
 	return mapErr(err)
 }
 
@@ -62,10 +67,12 @@ func (s *Store) ListNodes(ctx context.Context) ([]*domain.Node, error) {
 func (s *Store) UpdateNode(ctx context.Context, n *domain.Node) error {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE nodes SET name=$2, api_address=$3, api_port=$4, api_tls=$5,
-			api_tls_server_name=$6, api_tls_insecure=$7, status=$8, updated_at=now()
+			api_tls_server_name=$6, api_tls_insecure=$7, api_ca_cert=$8,
+			api_client_cert=$9, api_client_key=$10, status=$11, updated_at=now()
 		WHERE id = $1`,
 		n.ID, n.Name, n.APIAddress, n.APIPort, n.APITLS,
-		n.APITLSServerName, n.APITLSInsecure, n.Status)
+		n.APITLSServerName, n.APITLSInsecure, n.APICACert, n.APIClientCert,
+		n.APIClientKey, n.Status)
 	return requireRow(res, err)
 }
 

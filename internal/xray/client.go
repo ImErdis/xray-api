@@ -7,6 +7,7 @@ package xray
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"time"
 
@@ -60,6 +61,14 @@ type DialOptions struct {
 	TLSServerName string
 	TLSInsecure   bool
 	DialTimeout   time.Duration
+
+	// mTLS: when ClientCertPEM/ClientKeyPEM are set, the control plane presents
+	// a client certificate the node can verify. When CACertPEM is set, the
+	// node's server certificate is verified against it instead of the system
+	// roots (certificate pinning). All are PEM-encoded.
+	CACertPEM     string
+	ClientCertPEM string
+	ClientKeyPEM  string
 }
 
 type grpcClient struct {
@@ -68,11 +77,55 @@ type grpcClient struct {
 	stats   scommand.StatsServiceClient
 }
 
+// buildTLSConfig assembles the *tls.Config for a node connection: optional CA
+// pinning and optional client-certificate (mTLS) presentation.
+func buildTLSConfig(opts DialOptions) (*tls.Config, error) {
+	tc := &tls.Config{
+		ServerName:         opts.TLSServerName,
+		InsecureSkipVerify: opts.TLSInsecure,
+		MinVersion:         tls.VersionTLS12,
+	}
+	if opts.CACertPEM != "" {
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM([]byte(opts.CACertPEM)) {
+			return nil, fmt.Errorf("ca_cert: no valid certificate found in PEM")
+		}
+		tc.RootCAs = pool
+	}
+	if opts.ClientCertPEM != "" || opts.ClientKeyPEM != "" {
+		if opts.ClientCertPEM == "" || opts.ClientKeyPEM == "" {
+			return nil, fmt.Errorf("client cert and key must be provided together")
+		}
+		cert, err := tls.X509KeyPair([]byte(opts.ClientCertPEM), []byte(opts.ClientKeyPEM))
+		if err != nil {
+			return nil, fmt.Errorf("client cert/key: %w", err)
+		}
+		tc.Certificates = []tls.Certificate{cert}
+	}
+	return tc, nil
+}
+
+// ValidateTLSMaterial checks that the supplied PEM CA/cert/key parse and are
+// internally consistent, without opening a connection. Used to fail fast on
+// misconfigured node credentials.
+func ValidateTLSMaterial(caPEM, clientCertPEM, clientKeyPEM string) error {
+	_, err := buildTLSConfig(DialOptions{
+		TLS:           true,
+		CACertPEM:     caPEM,
+		ClientCertPEM: clientCertPEM,
+		ClientKeyPEM:  clientKeyPEM,
+	})
+	return err
+}
+
 // Dial opens a connection to a node. The connection is lazy; Ping forces it.
 func Dial(opts DialOptions) (Client, error) {
 	var creds credentials.TransportCredentials
 	if opts.TLS {
-		tc := &tls.Config{ServerName: opts.TLSServerName, InsecureSkipVerify: opts.TLSInsecure}
+		tc, err := buildTLSConfig(opts)
+		if err != nil {
+			return nil, err
+		}
 		creds = credentials.NewTLS(tc)
 	} else {
 		creds = insecure.NewCredentials()

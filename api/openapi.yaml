@@ -41,6 +41,12 @@ components:
         api_address: { type: string }
         api_port: { type: integer }
         api_tls: { type: boolean }
+        api_tls_server_name: { type: string }
+        api_tls_insecure: { type: boolean }
+        api_ca_cert: { type: string, description: "PEM CA pinning the node's server cert" }
+        api_client_cert: { type: string, description: "PEM client cert presented for mTLS" }
+        api_client_key: { type: string, writeOnly: true, description: "PEM client key; never returned. Omit on PATCH to keep, send empty to clear." }
+        api_has_client_key: { type: boolean, readOnly: true }
         status: { type: string, enum: [online, offline, unknown, disabled] }
         last_seen_at: { type: string, format: date-time, nullable: true }
     Inbound:

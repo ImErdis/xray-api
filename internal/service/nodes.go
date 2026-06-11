@@ -10,6 +10,7 @@ import (
 	"github.com/ImErdis/xray-api/internal/domain"
 	"github.com/ImErdis/xray-api/internal/store"
 	"github.com/ImErdis/xray-api/internal/worker"
+	"github.com/ImErdis/xray-api/internal/xray"
 )
 
 // NodeService manages nodes and their inbounds and keeps the worker manager in
@@ -35,6 +36,31 @@ type NodeInput struct {
 	APITLS           bool
 	APITLSServerName string
 	APITLSInsecure   bool
+
+	// mTLS PEM material. Pointer semantics: nil leaves the stored value
+	// unchanged (so a PATCH never wipes the write-only client key); a non-nil
+	// empty string clears it.
+	APICACert     *string
+	APIClientCert *string
+	APIClientKey  *string
+}
+
+// applyTLSMaterial applies the optional cert/CA fields and validates them.
+func (in NodeInput) applyTLSMaterial(n *domain.Node) error {
+	if in.APICACert != nil {
+		n.APICACert = *in.APICACert
+	}
+	if in.APIClientCert != nil {
+		n.APIClientCert = *in.APIClientCert
+	}
+	if in.APIClientKey != nil {
+		n.APIClientKey = *in.APIClientKey
+	}
+	if err := xray.ValidateTLSMaterial(n.APICACert, n.APIClientCert, n.APIClientKey); err != nil {
+		return domain.Validationf(err.Error())
+	}
+	n.APIHasClientKey = n.APIClientKey != ""
+	return nil
 }
 
 func (s *NodeService) Create(ctx context.Context, in NodeInput) (*domain.Node, error) {
@@ -56,6 +82,9 @@ func (s *NodeService) Create(ctx context.Context, in NodeInput) (*domain.Node, e
 		APITLSServerName: in.APITLSServerName,
 		APITLSInsecure:   in.APITLSInsecure,
 		Status:           domain.NodeStatusUnknown,
+	}
+	if err := in.applyTLSMaterial(n); err != nil {
+		return nil, err
 	}
 	if err := s.store.CreateNode(ctx, n); err != nil {
 		return nil, err
@@ -112,6 +141,9 @@ func (s *NodeService) Update(ctx context.Context, id string, in NodeInput) (*dom
 	n.APITLS = in.APITLS
 	n.APITLSServerName = in.APITLSServerName
 	n.APITLSInsecure = in.APITLSInsecure
+	if err := in.applyTLSMaterial(n); err != nil {
+		return nil, err
+	}
 	if err := s.store.UpdateNode(ctx, n); err != nil {
 		return nil, err
 	}
