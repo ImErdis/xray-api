@@ -14,14 +14,18 @@ import (
 
 // Server wires the HTTP handlers to the service layer.
 type Server struct {
-	store        *store.Store
-	nodes        *service.NodeService
-	plans        *service.PlanService
-	users        *service.UserService
-	apiKeys      *service.APIKeyService
-	log          *slog.Logger
-	bootstrapKey string
-	subCfg       subConfig
+	store          *store.Store
+	nodes          *service.NodeService
+	plans          *service.PlanService
+	users          *service.UserService
+	apiKeys        *service.APIKeyService
+	billing        *service.BillingService
+	log            *slog.Logger
+	bootstrapKey   string
+	billingSecret  string
+	metricsEnabled bool
+	limiter        *ipLimiter
+	subCfg         subConfig
 }
 
 type subConfig struct {
@@ -36,19 +40,24 @@ type Deps struct {
 	Plans   *service.PlanService
 	Users   *service.UserService
 	APIKeys *service.APIKeyService
+	Billing *service.BillingService
 	Log     *slog.Logger
 	Config  *config.Config
 }
 
 func NewServer(d Deps) *Server {
 	return &Server{
-		store:        d.Store,
-		nodes:        d.Nodes,
-		plans:        d.Plans,
-		users:        d.Users,
-		apiKeys:      d.APIKeys,
-		log:          d.Log,
-		bootstrapKey: d.Config.Auth.BootstrapAPIKey,
+		store:          d.Store,
+		nodes:          d.Nodes,
+		plans:          d.Plans,
+		users:          d.Users,
+		apiKeys:        d.APIKeys,
+		billing:        d.Billing,
+		log:            d.Log,
+		bootstrapKey:   d.Config.Auth.BootstrapAPIKey,
+		billingSecret:  d.Config.Webhooks.BillingSecret,
+		metricsEnabled: d.Config.Metrics.Enabled,
+		limiter:        newIPLimiter(d.Config.RateLimit.PublicPerMinute),
 		subCfg: subConfig{
 			updateIntervalHours: d.Config.Subscription.ProfileUpdateIntervalHours,
 			profileTitle:        d.Config.Subscription.ProfileTitle,

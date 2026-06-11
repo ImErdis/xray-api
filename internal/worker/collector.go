@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ImErdis/xray-api/internal/metrics"
 	"github.com/ImErdis/xray-api/internal/store"
 	"github.com/ImErdis/xray-api/internal/xray"
 )
@@ -71,11 +72,16 @@ func (a *nodeActor) collect(ctx context.Context) {
 		a.log.Warn("collect: persist deltas", "err", err)
 		return // DB write failed; keep pendingDeltas, merge next cycle
 	}
+	for _, d := range deltas {
+		metrics.TrafficCollected.WithLabelValues(a.node.Name, "uplink").Add(float64(d.Uplink))
+		metrics.TrafficCollected.WithLabelValues(a.node.Name, "downlink").Add(float64(d.Downlink))
+	}
 	// Success: clear the buffer.
 	a.pendingDeltas = make(map[string]*xray.UserTraffic)
 
 	// Suspended over-quota users must be removed from every node they're on.
 	for _, userID := range overQuota {
+		metrics.UsersSuspended.Inc()
 		a.log.Info("user suspended over quota", "user", userID)
 		a.mgr.ReconcileForUser(ctx, userID)
 	}

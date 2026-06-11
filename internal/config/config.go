@@ -39,6 +39,24 @@ type Config struct {
 		ProfileTitle               string `yaml:"profile_title"`
 	} `yaml:"subscription"`
 
+	Webhooks struct {
+		// BillingSecret is the shared HMAC-SHA256 secret for
+		// POST /webhooks/billing. The endpoint is disabled while empty.
+		BillingSecret string `yaml:"billing_secret"`
+	} `yaml:"webhooks"`
+
+	RateLimit struct {
+		// PublicPerMinute caps requests per client IP per minute on the public
+		// endpoints (/sub/*, /webhooks/*). 0 disables limiting.
+		PublicPerMinute int `yaml:"public_per_minute"`
+	} `yaml:"rate_limit"`
+
+	Metrics struct {
+		// Enabled exposes Prometheus metrics at /metrics (unauthenticated;
+		// firewall accordingly or scrape over a private network).
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"metrics"`
+
 	Log struct {
 		Level  string `yaml:"level"`  // debug|info|warn|error
 		Format string `yaml:"format"` // text|json
@@ -55,6 +73,8 @@ func Default() *Config {
 	c.Workers.ReconcileInterval = 5 * time.Minute
 	c.Workers.SnapshotRetentionDays = 90
 	c.Subscription.ProfileUpdateIntervalHours = 12
+	c.RateLimit.PublicPerMinute = 60
+	c.Metrics.Enabled = true
 	c.Log.Level = "info"
 	c.Log.Format = "text"
 	return c
@@ -99,6 +119,13 @@ func applyEnv(c *Config) {
 			}
 		}
 	}
+	boolean := func(key string, dst *bool) {
+		if v, ok := os.LookupEnv(key); ok {
+			if b, err := strconv.ParseBool(v); err == nil {
+				*dst = b
+			}
+		}
+	}
 
 	str("XRAY_API_LISTEN", &c.Listen)
 	str("XRAY_API_PUBLIC_BASE_URL", &c.PublicBaseURL)
@@ -110,6 +137,9 @@ func applyEnv(c *Config) {
 	num("XRAY_API_WORKERS_SNAPSHOT_RETENTION_DAYS", &c.Workers.SnapshotRetentionDays)
 	num("XRAY_API_SUBSCRIPTION_PROFILE_UPDATE_INTERVAL_HOURS", &c.Subscription.ProfileUpdateIntervalHours)
 	str("XRAY_API_SUBSCRIPTION_PROFILE_TITLE", &c.Subscription.ProfileTitle)
+	str("XRAY_API_WEBHOOKS_BILLING_SECRET", &c.Webhooks.BillingSecret)
+	num("XRAY_API_RATE_LIMIT_PUBLIC_PER_MINUTE", &c.RateLimit.PublicPerMinute)
+	boolean("XRAY_API_METRICS_ENABLED", &c.Metrics.Enabled)
 	str("XRAY_API_LOG_LEVEL", &c.Log.Level)
 	str("XRAY_API_LOG_FORMAT", &c.Log.Format)
 }

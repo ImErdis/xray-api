@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ImErdis/xray-api/internal/domain"
+	"github.com/ImErdis/xray-api/internal/metrics"
 	"github.com/ImErdis/xray-api/internal/store"
 	"github.com/ImErdis/xray-api/internal/xray"
 )
@@ -30,6 +31,7 @@ func (a *nodeActor) reconcile(ctx context.Context) {
 		cancel()
 		if err != nil {
 			a.log.Warn("reconcile: remove user", "email", d.Email, "tag", d.InboundTag, "err", err)
+			metrics.ReconcileErrors.WithLabelValues(a.node.Name).Inc()
 			a.dropClient()
 			return
 		}
@@ -53,6 +55,7 @@ func (a *nodeActor) reconcile(ctx context.Context) {
 		cancel()
 		if err != nil {
 			a.log.Warn("reconcile: add user", "email", d.Email, "tag", d.InboundTag, "err", err)
+			metrics.ReconcileErrors.WithLabelValues(a.node.Name).Inc()
 			_ = a.mgr.store.MarkAssignmentSynced(ctx, d.UserID, d.InboundID, domain.SyncFailed, err.Error())
 			a.dropClient()
 			return

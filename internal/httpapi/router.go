@@ -2,9 +2,14 @@ package httpapi
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/ImErdis/xray-api/internal/metrics"
 )
 
 // Router builds the full route tree: public endpoints (health, subscription)
@@ -18,8 +23,15 @@ func (s *Server) Router() http.Handler {
 
 	// Public.
 	r.Get("/healthz", s.handleHealthz)
-	r.Get("/sub/{token}", s.handleSubscription)
-	r.Get("/sub/{token}/info", s.handleSubscriptionInfo)
+	if s.metricsEnabled {
+		r.Method(http.MethodGet, "/metrics", metrics.Handler())
+	}
+	r.Group(func(r chi.Router) {
+		r.Use(s.rateLimitMiddleware)
+		r.Get("/sub/{token}", s.handleSubscription)
+		r.Get("/sub/{token}/info", s.handleSubscriptionInfo)
+		r.Post("/webhooks/billing", s.handleBillingWebhook)
+	})
 
 	// Admin API.
 	r.Route("/api/v1", func(r chi.Router) {
@@ -67,6 +79,7 @@ func (s *Server) Router() http.Handler {
 				r.Put("/inbounds", s.handleSetUserInbounds)
 				r.Post("/suspend", s.handleSuspendUser)
 				r.Post("/resume", s.handleResumeUser)
+				r.Post("/renew", s.handleRenewUser)
 				r.Post("/reset-traffic", s.handleResetTraffic)
 				r.Post("/rotate-sub-token", s.handleRotateSubToken)
 				r.Get("/usage", s.handleUserUsage)
@@ -87,11 +100,27 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// requestLogger logs each request at debug/info via slog.
+// requestLogger logs each request via slog and records HTTP metrics, grouped
+// coarsely (api/sub/webhook/other) to keep label cardinality bounded.
 func (s *Server) requestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(ww, r)
+
+		group := "other"
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/"):
+			group = "api"
+		case strings.HasPrefix(r.URL.Path, "/sub/"):
+			group = "sub"
+		case strings.HasPrefix(r.URL.Path, "/webhooks/"):
+			group = "webhook"
+		}
+		statusClass := strconv.Itoa(ww.Status()/100) + "xx"
+		metrics.HTTPRequests.WithLabelValues(group, statusClass).Inc()
+		metrics.HTTPDuration.WithLabelValues(group).Observe(time.Since(start).Seconds())
+
 		s.log.Debug("http",
 			"method", r.Method, "path", r.URL.Path,
 			"status", ww.Status(), "bytes", ww.BytesWritten())

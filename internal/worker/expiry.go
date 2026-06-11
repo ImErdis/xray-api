@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"time"
+
+	"github.com/ImErdis/xray-api/internal/metrics"
 )
 
 const expirySweepInterval = 60 * time.Second
@@ -24,6 +26,7 @@ func (m *Manager) runExpirySweeper(ctx context.Context) {
 				continue
 			}
 			for _, id := range ids {
+				metrics.UsersExpired.Inc()
 				m.log.Info("user expired", "user", id)
 				m.ReconcileForUser(ctx, id)
 			}
