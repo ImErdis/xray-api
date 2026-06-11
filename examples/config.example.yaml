@@ -35,6 +35,21 @@ subscription:
   # Optional fixed title shown in clients; defaults to the user's email.
   profile_title: ""
 
+webhooks:
+  # Shared HMAC-SHA256 secret for POST /webhooks/billing (see
+  # docs/billing-webhooks.md). The endpoint stays disabled (404) while empty.
+  billing_secret: ""
+
+rate_limit:
+  # Requests per client IP per minute on public endpoints (/sub/*, /webhooks/*).
+  # 0 disables limiting.
+  public_per_minute: 60
+
+metrics:
+  # Prometheus metrics at /metrics. The endpoint is unauthenticated — scrape it
+  # over a private network or firewall it.
+  enabled: true
+
 log:
   level: "info"   # debug|info|warn|error
   format: "text"  # text|json

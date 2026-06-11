@@ -7,14 +7,23 @@ provisioning, subscription links, traffic accounting, and quota enforcement** �
 all driven over a clean HTTP API that your storefront, billing system, or
 admin panel can call.
 
-Built for ecommerce/SaaS: sell a plan, call `POST /users`, hand the customer a
-subscription URL. The control plane pushes the account to every node, meters
-traffic, and auto-suspends on overage or expiry.
+Built for ecommerce/SaaS: sell a plan, call `POST /users` (or let your billing
+system hit the **signed webhook endpoint**), hand the customer a subscription
+URL. The control plane pushes the account to every node, meters traffic,
+auto-suspends on overage or expiry, and renews atomically on payment.
 
-> Status: v1 core. Provisioning + traffic/quota are implemented. Billing
-> webhooks and a separate customer-portal API are intentionally out of scope
-> for now (the token-scoped `GET /sub/{token}/info` endpoint is a starting
-> point for portals).
+Highlights:
+
+- **Billing integration** — provider-agnostic `POST /webhooks/billing`
+  (HMAC-signed, replay-safe, idempotent provisioning) plus an atomic
+  `POST /users/{id}/renew`; see [`docs/billing-webhooks.md`](docs/billing-webhooks.md)
+- **Self-healing fleet** — per-node reconcilers converge nodes to the database
+  state; Xray restarts are detected via uptime drop and users are re-pushed
+  within one health interval
+- **Accurate metering** — reset-on-read traffic deltas, quota auto-suspend,
+  expiry sweeping
+- **Operable** — Prometheus `/metrics`, per-IP rate limiting on public
+  endpoints, structured logs, OpenAPI spec
 
 ## How it works
 
@@ -100,9 +109,11 @@ spec: [`api/openapi.yaml`](api/openapi.yaml), also served at
 | Nodes | `GET/POST /nodes`, `GET/PATCH/DELETE /nodes/{id}`, `POST /nodes/{id}/reconcile` |
 | Inbounds | `GET/POST /nodes/{id}/inbounds`, `GET/PATCH/DELETE /inbounds/{id}` |
 | Plans | `GET/POST /plans`, `GET/PATCH/DELETE /plans/{id}` |
-| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}`, `PUT /users/{id}/inbounds`, `POST /users/{id}/{suspend,resume,reset-traffic,rotate-sub-token}`, `GET /users/{id}/usage` |
+| Users | `GET/POST /users`, `GET/PATCH/DELETE /users/{id}`, `PUT /users/{id}/inbounds`, `POST /users/{id}/{renew,suspend,resume,reset-traffic,rotate-sub-token}`, `GET /users/{id}/usage` |
 | API keys | `GET/POST /api-keys`, `DELETE /api-keys/{id}` |
 | Subscription (public) | `GET /sub/{token}` (`?format=v2ray\|clash`), `GET /sub/{token}/info` |
+| Billing (public, signed) | `POST /webhooks/billing` — see [`docs/billing-webhooks.md`](docs/billing-webhooks.md) |
+| Ops | `GET /metrics` (Prometheus), `GET /healthz` |
 
 ## Development
 

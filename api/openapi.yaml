@@ -152,6 +152,25 @@ paths:
   /users/{id}/resume:
     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
     post: { summary: Re-enable a user, responses: { "200": { description: OK } } }
+  /users/{id}/renew:
+    parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+    post:
+      summary: Renew a subscription (billing-cycle endpoint)
+      description: >-
+        Extends expiry (stacking from the current expiry when still in the
+        future), optionally resets traffic and/or switches plan, and
+        reactivates the user — atomically.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days: { type: integer }
+                reset_traffic: { type: boolean }
+                plan_id: { type: string, nullable: true }
+      responses: { "200": { description: OK } }
   /users/{id}/reset-traffic:
     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
     post: { summary: Zero usage and reactivate if quota-suspended, responses: { "200": { description: OK } } }
@@ -165,6 +184,48 @@ paths:
       - { name: to, in: query, schema: { type: string, format: date-time } }
       - { name: group_by, in: query, schema: { type: string, enum: [day, node] } }
     get: { summary: Aggregated traffic usage, responses: { "200": { description: OK } } }
+  /webhooks/billing:
+    post:
+      summary: Billing webhook (public, HMAC-signed)
+      description: >-
+        Provider-agnostic billing lifecycle endpoint. Authenticated by hex
+        HMAC-SHA256 of the raw body in X-Webhook-Signature (not by API key).
+        Replay-safe via event_id; provisioning is idempotent on external_id.
+        See docs/billing-webhooks.md. Served at /webhooks/billing (no /api/v1
+        prefix).
+      security: []
+      parameters:
+        - { name: X-Webhook-Signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event_id, action]
+              properties:
+                event_id: { type: string }
+                action: { type: string, enum: [provision, renew, suspend, resume, cancel] }
+                external_id: { type: string }
+                email: { type: string }
+                provision:
+                  type: object
+                  properties:
+                    email: { type: string }
+                    plan_id: { type: string, nullable: true }
+                    inbound_ids: { type: array, items: { type: string } }
+                    data_limit_bytes: { type: integer, nullable: true }
+                    expires_at: { type: string, format: date-time, nullable: true }
+                    note: { type: string }
+                renew:
+                  type: object
+                  properties:
+                    days: { type: integer }
+                    reset_traffic: { type: boolean }
+                    plan_id: { type: string, nullable: true }
+      responses:
+        "200": { description: Processed (or acknowledged duplicate) }
+        "401": { description: Invalid signature }
   /api-keys:
     get: { summary: List API keys, responses: { "200": { description: OK } } }
     post: { summary: Create an API key (plaintext returned once), responses: { "201": { description: Created } } }
